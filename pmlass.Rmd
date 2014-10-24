@@ -1,0 +1,109 @@
+Predicting the Quality of a Weight-lifting Exercise
+===================================================
+
+
+## Synopsis
+
+This assignment considers the way in which an individual performs a weight-lifting exercise (Unilateral Dumbbell Biceps Curl) using a hand-held 1.25kg dumbbell and whether that performance conforms to a standard. This uses data collected by Velloso[1]. Each time a lift occured, it was graded on an A-E scale where A represents satisfactory performance and B-E represent common non-conformities. The six lifters, who were all of similar age, gender and fitness level, were connected to four sensors which fed data to a laptop. 
+
+The objective of the assignment is to produce a model to predict the performance grade using the data collected from the sensors.
+
+
+## Data
+
+The sensors were located on the belt, arm, forearm and the dumbbell itself. Multiple snapshots were captured in the course of a single lift. Each sensor provided 9 degrees of freedom (gyroscope, accelerometer and magnetometer each in 3 dimensions). From this raw data, rotation in each dimension (termed roll, pitch and yaw) was computed along with the total acceleration. For each completed lift window, other metrics were computed. The model developed here looks to use data from just the individual snapshots rather than the data across the full phase of the lift.
+
+The five categories of performance were:
+
+- A: exactly according to the specification
+
+- B: throwing the elbows to the front
+
+- C: lifting the dumbbell only halfway
+
+- D: lowering the dumbbell only halfway
+
+- E: throwing the hips to the front
+
+The main data provided was a subset of Velloso[1] containing 19,622 observations. A hold-out set of 20 observations has also been provided for evaluation purposes.
+
+After loading the data-set the analysis was confined to the grade ('classe') and 16 predictor variables (the four computed metrics - roll, pitch, yaw, total acceleration - from the four sensors). If these had not yielded satisfactory results, inclusion of the raw data would have been considered.
+
+```{r}
+fileUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+download.file(fileUrl,destfile="training.csv")
+training <- read.csv("training.csv",stringsAsFactor=F,header=T)
+x <- c(8:11,46:49,84:86,102,122:124,140,160)
+dt1 <- training[,x]
+dt1$classe <- as.factor(dt1$classe)
+```
+
+
+## Validation
+
+The data was split 50:50 with one half - the training set - being used to build the model, which would then be applied to the second half - the test set - to assess the accuracy of the predictive capability.
+
+```{r}
+library(caret)
+set.seed(321)
+inTrain <- createDataPartition(y=dt1$classe,p=0.5,list=F)
+subTrain <- dt1[inTrain,]
+subTest <- dt1[-inTrain,]
+```
+
+
+## Model build
+
+The model was built using the randomForest algorithm within the caret package. 4-fold cross-validation was used.
+
+```{r cache=TRUE}
+modFit <- train(classe~.,data=subTrain,method="rf",prox=T, 
+            trControl = trainControl(method = "cv", number = 4, allowParallel = TRUE))
+modFit
+predTrain <- predict(modFit,subTrain)
+cm1 <- confusionMatrix(predTrain,subTrain$classe)
+cm1
+```
+
+The predictive level of accuracy of this model is outstanding at `r cm1$overall[1]*100`%
+
+The model was then applied to the test set to confirm this achievement was not fortuitous or the result of over-fitting. 
+
+```{r}
+predTest <- predict(modFit,subTest)
+cm2 <- confusionMatrix(predTest,subTest$classe)
+cm2
+```
+
+Using the test set also provides an expectation of the out-of-sample error rate of `r (1-cm2$overall[1])*100`%
+
+
+## Conclusion
+
+It is possible using a random forest approach to build a highly predictive model of the quality of the peformance of this weight-lifting activity using data calculated from the output of four of the sensors.
+
+
+## Completion of the Assignment
+
+```{r}
+fileUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(fileUrl,destfile="testing.csv")
+testing <- read.csv("testing.csv",stringsAsFactor=F,header=T)
+x <- c(8:11,46:49,84:86,102,122:124,140)
+dt2 <- testing[,x]
+answers <- predict(modFit,dt2)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
+
+
+## Reference
+
+[1] Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
